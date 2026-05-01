@@ -9,7 +9,7 @@ import argparse
 import os
 import platform
 import sys
-from html.parser import HTMLParser
+import re
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -52,45 +52,18 @@ def find_font():
 # ───────────────────────────── Markdown → ElementTree 解析器
 
 
-class MDParser(HTMLParser):
-    """把 markdown 生成的 HTML 解析为 ElementTree，保留 text/tail 顺序"""
+VOID_TAGS = {"br", "hr", "img", "input", "meta", "link",
+             "area", "base", "col", "embed", "param", "source", "track", "wbr"}
 
-    def __init__(self):
-        super().__init__()
-        self.root = None
-        self.stack = []
-        self.buf = ""
 
-    def handle_starttag(self, tag, attrs):
-        self._flush()
-        elem = ET.Element(tag, dict(attrs))
-        if self.stack:
-            self.stack[-1].append(elem)
-        else:
-            self.root = elem
-        self.stack.append(elem)
-
-    def handle_endtag(self, tag):
-        self._flush()
-        if self.stack:
-            self.stack.pop()
-
-    def handle_data(self, data):
-        self.buf += data
-
-    def _flush(self):
-        if not self.buf:
-            return
-        if self.stack:
-            elem = self.stack[-1]
-            elem.text = (elem.text or "") + self.buf
-        self.buf = ""
-
-    def parse(self, md_text):
-        md = markdown.Markdown(extensions=["tables", "fenced_code"])
-        self.feed(md.convert(md_text))
-        self._flush()
-        return self.root
+def parse_md(md_text):
+    """把 Markdown 转为 ElementTree，保留 text/tail 顺序"""
+    md = markdown.Markdown(extensions=["tables", "fenced_code"])
+    html_text = md.convert(md_text)
+    # 修复 HTML 自闭合标签为合法 XML
+    for tag in VOID_TAGS:
+        html_text = html_text.replace(f"<{tag}>", f"<{tag}/>")
+    return ET.fromstring(f"<root>{html_text}</root>")
 
 
 def iter_elem(elem):
@@ -150,7 +123,7 @@ class PDFExporter:
 
     def export(self, md_text, out_path):
         self._set(10)
-        for ev, *args in iter_elem(MDParser().parse(md_text)):
+        for ev, *args in iter_elem(parse_md(md_text)):
             if ev == "text":
                 self._txt(args[0])
             elif ev == "enter":
@@ -278,6 +251,7 @@ class DOCXExporter:
         self._para = None   # 当前段落
         self._run = None    # 当前 run
         self._in_table = False
+        self._in_cell = False
         self._rows = []
         self._row = []
         self._cell = ""
@@ -292,7 +266,7 @@ class DOCXExporter:
         s.element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
 
     def export(self, md_text, out_path):
-        for ev, *args in iter_elem(MDParser().parse(md_text)):
+        for ev, *args in iter_elem(parse_md(md_text)):
             if ev == "text":
                 self._txt(args[0])
             elif ev == "enter":
@@ -366,6 +340,7 @@ class DOCXExporter:
             self.doc.add_paragraph("─" * 40)
 
     def _exit(self, tag):
+        from docx.shared import Pt
         if tag == "pre":
             self._in_code = False
             text = self._cell
