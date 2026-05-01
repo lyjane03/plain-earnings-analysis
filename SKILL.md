@@ -97,9 +97,58 @@ description: 把上市公司的财报（年报/季报）转写成一份无财务
 # 输出格式
 
 - 默认输出 Markdown 文件，文件名格式：`{公司名}{报告期}经营分析报告_速读版.md`
-- 写完后询问用户是否需要导出为其他格式（PDF / DOCX），按用户需要执行
 - 保存在用户指定的工作目录下
 - 不要在对话里复述报告全文，用一句话告知文件路径即可
+
+## 导出 PDF / DOCX
+
+当用户要求导出其他格式时，使用仓库自带的 `export.py` 脚本自动转换。
+
+### 前置依赖
+
+首次使用前安装 Python 依赖（只需执行一次）：
+
+```bash
+pip install -r requirements.txt
+```
+
+依赖均为纯 Python 包，跨平台一致，无需额外安装 pandoc / TeX / wkhtmltopdf 等系统二进制。
+
+### 使用方法
+
+```bash
+# 同时导出 PDF 和 DOCX
+python export.py report.md
+
+# 仅导出 PDF
+python export.py report.md --format pdf
+
+# 仅导出 DOCX
+python export.py report.md --format docx
+
+# 指定输出目录
+python export.py report.md -o /path/to/output
+
+# 手动指定中文字体（PDF 需要，默认自动检测系统字体）
+python export.py report.md --format pdf --font /System/Library/Fonts/PingFang.ttc
+```
+
+### 格式适配说明
+
+`export.py` 针对不同输出格式做了独立适配，Markdown 语法不会原样暴露：
+
+| Markdown 元素 | PDF 表现 | DOCX 表现 |
+|-------------|---------|----------|
+| `# 标题` | 大号粗体 + 上下留白 | Word 内置标题样式（目录可识别） |
+| `**粗体**` | 粗体渲染 | 粗体渲染 |
+| `*斜体*` | 正常（中文字体无斜体） | 斜体渲染 |
+| `> 引用` | 整段左缩进 | 左缩进 + 段落间距 |
+| 表格 | 带边框单元格，自动换行 | Word 原生表格，可编辑 |
+| 代码块 | 等宽字体 + 灰色背景 | 等宽字体 + 左缩进 |
+| 列表 | 项目符号 + 缩进 | Word 列表样式 |
+| `---` 分隔线 | 水平实线 | 连续横线字符 |
+
+PDF 导出会自动检测系统上的中文字体（macOS 苹方/黑体、Windows 微软雅黑、Linux 文泉驿）。检测失败时可手动通过 `--font` 指定。
 
 # 处理用户反馈
 
