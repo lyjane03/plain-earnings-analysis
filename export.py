@@ -27,7 +27,6 @@ def find_font():
     system = platform.system()
     candidates = {
         "Darwin": [
-            "/System/Library/Fonts/PingFang.ttc",
             "/System/Library/Fonts/STHeiti Light.ttc",
             "/System/Library/Fonts/Hiragino Sans GB.ttc",
             "/Library/Fonts/Arial Unicode.ttf",
@@ -41,6 +40,26 @@ def find_font():
             r"C:\Windows\Fonts\msyh.ttc",
             r"C:\Windows\Fonts\simhei.ttf",
             r"C:\Windows\Fonts\simsun.ttc",
+        ],
+    }.get(system, [])
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def find_emoji_font():
+    """自动检测系统 emoji 字体"""
+    system = platform.system()
+    candidates = {
+        "Darwin": [
+            "/System/Library/Fonts/Apple Color Emoji.ttc",
+        ],
+        "Linux": [
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+        ],
+        "Windows": [
+            r"C:\Windows\Fonts\seguiemj.ttf",
         ],
     }.get(system, [])
     for p in candidates:
@@ -104,6 +123,17 @@ class PDFExporter:
             except Exception as e:
                 print(f"字体加载失败: {e}")
                 self.font_path = None
+
+        # 注册 emoji fallback 字体
+        emoji_font = find_emoji_font()
+        if emoji_font:
+            try:
+                self.pdf.add_font("emoji", "", emoji_font)
+            except Exception as e:
+                print(f"emoji 字体加载失败: {e}")
+                emoji_font = None
+        if emoji_font:
+            self.pdf.set_fallback_fonts(["emoji"])
 
         self._f = "cn" if self.font_path else "Helvetica"
 
